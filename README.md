@@ -2,7 +2,7 @@
 
 Splits a wide photo into slides that line up seamlessly in an Instagram carousel. Runs entirely in the browser; photos never leave the device. Installable as a PWA with offline support.
 
-Live: https://hodzic.github.io/photo-splitter/
+Live: [hodzic.github.io/photo-splitter](https://hodzic.github.io/photo-splitter/)
 
 ## Features
 - 2–20 slides, auto-picked from the photo's aspect ratio
