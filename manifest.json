@@ -3,7 +3,7 @@
   "name": "Panorama Splitter",
   "short_name": "Splitter",
   "description": "Split a panorama into seamless Instagram carousel slides.",
-  "start_url": "./",
+  "start_url": "/photo-splitter/",
   "scope": "/photo-splitter/",
   "display": "standalone",
   "background_color": "#E8ECEE",
