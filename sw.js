@@ -1,5 +1,5 @@
 // Bump VERSION when you change icons or manifest so phones pick up the new files.
-const VERSION = 'splitter-v1';
+const VERSION = 'splitter-v2';
 const SHELL = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
