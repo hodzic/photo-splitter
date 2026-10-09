@@ -6,9 +6,9 @@
 <title>Panorama Splitter</title>
 <meta name="description" content="Split a panorama into seamless Instagram carousel slides.">
 <meta name="theme-color" content="#0B6E75">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icons/icon-192.png">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="/photo-splitter/manifest.json">
+<link rel="icon" href="/photo-splitter/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/photo-splitter/icons/icon-192.png">
 <style>
 :root{--bg:#E8ECEE;--surface:#fff;--ink:#17242E;--muted:#5A6B77;--line:#C9D1D6;--accent:#0B6E75;--accent-ink:#fff;--cut:#D6336C;color-scheme:light dark}
 @media (prefers-color-scheme:dark){:root{--bg:#10171C;--surface:#18222A;--ink:#E4EAEE;--muted:#93A3AE;--line:#2C3A44;--accent:#3FB5BC;--accent-ink:#06262A;--cut:#F06595}}
@@ -342,7 +342,7 @@ $('#share').onclick=async()=>{
 };
 
 // ---------- PWA ----------
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/photo-splitter/sw.js');
 
 // image shared from another app (Android share sheet, installed app only)
 (async()=>{

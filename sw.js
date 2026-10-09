@@ -1,6 +1,6 @@
 // Bump VERSION when you change icons or manifest so phones pick up the new files.
-const VERSION = 'splitter-v3';
-const SHELL = ['./', './index.html', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png'];
+const VERSION = 'splitter-v4';
+const SHELL = ['/photo-splitter/', '/photo-splitter/index.html', '/photo-splitter/manifest.json', '/photo-splitter/icons/icon-192.png', '/photo-splitter/icons/icon-512.png', '/photo-splitter/icons/icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)));
@@ -29,7 +29,7 @@ self.addEventListener('fetch', e => {
           headers: { 'Content-Type': file.type || 'image/jpeg', 'X-Filename': encodeURIComponent(file.name || 'shared.jpg') }
         }));
       }
-      return Response.redirect('./?shared=1', 303);
+      return Response.redirect('/photo-splitter/?shared=1', 303);
     })());
     return;
   }
@@ -40,8 +40,8 @@ self.addEventListener('fetch', e => {
   if (e.request.mode === 'navigate') {
     e.respondWith(
       fetch(e.request)
-        .then(r => { const copy = r.clone(); caches.open(VERSION).then(c => c.put('./index.html', copy)); return r; })
-        .catch(() => caches.match('./index.html'))
+        .then(r => { const copy = r.clone(); caches.open(VERSION).then(c => c.put('/photo-splitter/index.html', copy)); return r; })
+        .catch(() => caches.match('/photo-splitter/index.html'))
     );
     return;
   }
