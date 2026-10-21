@@ -7,7 +7,7 @@ Live: [hodzic.github.io/photo-splitter](https://hodzic.github.io/photo-splitter/
 ## Features
 - 2–20 slides, auto-picked from the photo's aspect ratio
 - Square 1:1 or portrait 4:5 slides at 1080 px wide (Instagram's native size)
-- Trim the left and right edges before splitting
+- Trim the left and right edges by dragging handles on the photo
 - Crop (with position slider) or fit the whole photo with white/black bars
 - Swipeable carousel preview to check seams
 - Share sheet on mobile (send straight to Instagram), ZIP download on desktop, tap a slide to save it alone
