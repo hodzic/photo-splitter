@@ -29,7 +29,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .btn:disabled{opacity:.5;cursor:default}
 #editor[hidden],#drop[hidden]{display:none}
 .stage{margin-top:20px;background:var(--surface);border-radius:14px;padding:14px}
-#strip{display:block;width:100%;height:auto;border-radius:4px}
+#strip{display:block;width:100%;height:auto;border-radius:4px;touch-action:pan-y}
 #hint{margin:10px 2px 0;color:var(--muted);font-size:.92rem;font-variant-numeric:tabular-nums}
 .controls{margin-top:14px;background:var(--surface);border-radius:14px;padding:4px 14px}
 .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line);flex-wrap:wrap}
@@ -45,7 +45,6 @@ button{font:inherit;color:inherit;cursor:pointer}
 .chip{margin-left:6px;border:1px solid var(--line);background:none;border-radius:999px;padding:7px 12px}
 .chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 input[type=range]{flex:1 1 200px;accent-color:var(--accent);min-height:32px}
-.val{min-width:4ch;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
 .preview{margin-top:14px;background:var(--surface);border-radius:14px;padding:16px 14px}
 .preview p{margin:0 0 12px;color:var(--muted);font-size:.92rem;text-align:center}
 .car{max-width:300px;margin:0 auto;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;border-radius:8px;background:#000;scrollbar-width:none}
@@ -74,7 +73,7 @@ input[type=range]{flex:1 1 200px;accent-color:var(--accent);min-height:32px}
 
   <section id="editor" hidden>
     <div class="stage">
-      <canvas id="strip" aria-label="Panorama with slide cut lines"></canvas>
+      <canvas id="strip" aria-label="Panorama with slide cut lines and side trim handles"></canvas>
       <p id="hint"></p>
     </div>
 
@@ -101,16 +100,6 @@ input[type=range]{flex:1 1 200px;accent-color:var(--accent);min-height:32px}
           <button data-v="crop">Crop</button>
           <button data-v="fit">Fit whole photo</button>
         </span>
-      </div>
-      <div class="row">
-        <label class="label" for="cl">Trim left</label>
-        <input type="range" id="cl" min="0" max="0.45" step="0.005" value="0">
-        <output class="val" id="clVal" for="cl">0%</output>
-      </div>
-      <div class="row">
-        <label class="label" for="cr">Trim right</label>
-        <input type="range" id="cr" min="0" max="0.45" step="0.005" value="0">
-        <output class="val" id="crVal" for="cr">0%</output>
       </div>
       <div class="row" id="posRow">
         <label class="label" for="pos">Position</label>
@@ -168,7 +157,7 @@ async function loadFile(file){
     state.img = img;
     state.name = (file.name||'panorama').replace(/\.[^.]+$/,'') || 'panorama';
     state.auto = true; state.pos = .5; $('#pos').value = .5;
-    state.cl = state.cr = 0; $('#cl').value = $('#cr').value = 0;
+    state.cl = state.cr = 0;
     $('#drop').hidden = true; $('#editor').hidden = false; status('');
     render();
   }catch{
@@ -204,6 +193,12 @@ function geo(){
   const oy = crop ? (H-dh)*state.pos : (H-dh)/2;
   return {W,H,SW,dw,dh,ox,oy};
 }
+// Slide frame in photo pixels, and the strip's view box: photo plus frame (bars can stick out)
+function frame(g){
+  const [iw,ih]=imgDims(), [sx,sw]=src(), s=g.dw/sw;
+  const fx0=sx-g.ox/s, fy0=-g.oy/s, x0=Math.min(0,fx0), y0=Math.min(0,fy0);
+  return {s,fx0,fy0,x0,y0,w:Math.max(iw,fx0+g.SW/s)-x0,h:Math.max(ih,fy0+g.H/s)-y0};
+}
 function drawSlice(ctx,i,g,k){
   ctx.fillStyle=state.bg; ctx.fillRect(0,0,g.W*k,g.H*k);
   ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
@@ -218,7 +213,6 @@ function draw(){
   if(!state.img) return;
   if(state.auto) state.n=autoN();
   $('#n').textContent=state.n;
-  $('#clVal').textContent=Math.round(state.cl*100)+'%'; $('#crVal').textContent=Math.round(state.cr*100)+'%';
   $('#auto').setAttribute('aria-pressed',state.auto);
   $('#minus').disabled = state.n<=2; $('#plus').disabled = state.n>=MAX_N;
   document.querySelectorAll('.seg').forEach(seg=>{
@@ -228,25 +222,43 @@ function draw(){
   const g=geo(), dpr=window.devicePixelRatio||1;
   const cs=getComputedStyle(document.documentElement);
 
-  // strip
-  const cv=$('#strip'), cw=Math.round(cv.clientWidth*dpr), k=cw/g.SW;
-  cv.width=cw; cv.height=Math.max(1,Math.round(g.H*k));
+  // strip: whole photo dimmed, the slide frame as exported on top, trim handles at the sides
+  const [iw,ih]=imgDims(), f=frame(g);
+  if(!drag) view={x0:f.x0,y0:f.y0,w:f.w,h:f.h};
+  const cv=$('#strip'), cw=Math.round(cv.clientWidth*dpr), k=cw/view.w, kk=k/f.s;
+  cv.width=cw; cv.height=Math.max(1,Math.round(view.h*k));
   const c=cv.getContext('2d');
-  c.fillStyle=state.bg; c.fillRect(0,0,cv.width,cv.height);
   c.imageSmoothingQuality='high';
-  drawSrc(c,g.ox*k,g.oy*k,g.dw*k,g.dh*k);
+  const ix=-view.x0*k, iy=-view.y0*k;
+  c.drawImage(state.img,ix,iy,iw*k,ih*k);
+  c.fillStyle='rgba(0,0,0,.55)'; c.fillRect(ix,iy,iw*k,ih*k);
+  const X=(f.fx0-view.x0)*k, Y=(f.fy0-view.y0)*k, FW=g.SW*kk, FH=g.H*kk;
+  c.save(); c.beginPath(); c.rect(X,Y,FW,FH); c.clip();
+  c.fillStyle=state.bg; c.fillRect(X,Y,FW,FH);
+  drawSrc(c,X+g.ox*kk,Y+g.oy*kk,g.dw*kk,g.dh*kk);
+  c.restore();
   c.strokeStyle=cs.getPropertyValue('--cut').trim(); c.lineWidth=2*dpr; c.setLineDash([6*dpr,4*dpr]);
-  for(let i=1;i<state.n;i++){ const x=Math.round(i*g.W*k)+.5; c.beginPath(); c.moveTo(x,0); c.lineTo(x,cv.height); c.stroke(); }
+  for(let i=1;i<state.n;i++){ const x=Math.round(X+i*g.W*kk)+.5; c.beginPath(); c.moveTo(x,Y); c.lineTo(x,Y+FH); c.stroke(); }
   c.setLineDash([]);
-  const sw=g.W*k;
+  const sw=g.W*kk;
   if(sw>=26*dpr){
     c.font=`600 ${11*dpr}px system-ui,sans-serif`; c.textBaseline='middle'; c.textAlign='center';
     for(let i=0;i<state.n;i++){
-      const x=i*sw+6*dpr, y=6*dpr, r=9*dpr;
+      const x=X+i*sw+6*dpr, y=Math.max(0,Y)+6*dpr, r=9*dpr;
       c.fillStyle='rgba(0,0,0,.6)'; c.beginPath(); c.arc(x+r,y+r,r,0,Math.PI*2); c.fill();
       c.fillStyle='#fff'; c.fillText(i+1,x+r,y+r+.5*dpr);
     }
   }
+  const accent=cs.getPropertyValue('--accent').trim(), gw=14*dpr, gh=Math.min(40*dpr,ih*k*.6);
+  for(const fx of [state.cl,1-state.cr]){
+    const x=ix+fx*iw*k, gx=Math.min(cw-gw/2,Math.max(gw/2,x)), gy=iy+ih*k/2;
+    c.fillStyle=accent; c.fillRect(x-1.5*dpr,iy,3*dpr,ih*k);
+    c.beginPath(); c.roundRect(gx-gw/2,gy-gh/2,gw,gh,gw/2); c.fill();
+    c.strokeStyle='#fff'; c.lineWidth=1.5*dpr; c.beginPath();
+    for(const dx of [-2.5*dpr,2.5*dpr]){ c.moveTo(gx+dx,gy-gh/4); c.lineTo(gx+dx,gy+gh/4); }
+    c.stroke();
+  }
+  stripMap={k,ix,iw,dpr};
 
   // hint + conditional controls
   const crop=state.fit==='crop';
@@ -260,7 +272,8 @@ function draw(){
     else if(g.dh<g.H-1) note='Adds bars above and below.';
     else note='Fits exactly, no bars.';
   }
-  $('#hint').textContent=`${state.n} slides at ${g.W} × ${g.H} px. ${note}`;
+  const trim = state.cl||state.cr ? `Sides trimmed ${Math.round(state.cl*100)}% left, ${Math.round(state.cr*100)}% right.` : 'Drag the side handles to trim.';
+  $('#hint').textContent=`${state.n} slides at ${g.W} × ${g.H} px. ${note} ${trim}`;
   $('#posRow').hidden = !(crop && (g.dw>g.SW+1 || g.dh>g.H+1));
   $('#bgRow').hidden = crop;
 
@@ -292,8 +305,32 @@ $('#minus').onclick=()=>{ state.auto=false; state.n=Math.max(2,state.n-1); rende
 $('#plus').onclick=()=>{ state.auto=false; state.n=Math.min(MAX_N,state.n+1); render(); };
 $('#auto').onclick=()=>{ state.auto=!state.auto; render(); };
 $('#pos').oninput=e=>{ state.pos=+e.target.value; render(); };
-$('#cl').oninput=e=>{ state.cl=+e.target.value; render(); };
-$('#cr').oninput=e=>{ state.cr=+e.target.value; render(); };
+// side trim handles; the view box stays put while dragging so the handle tracks the pointer
+const MIN_KEEP=.1;
+let view=null, drag=null, stripMap=null;
+function trimAt(e){
+  const m=stripMap, r=$('#strip').getBoundingClientRect();
+  return ((e.clientX-r.left)*m.dpr-m.ix)/(m.iw*m.k);
+}
+function handleAt(e){
+  const x=trimAt(e), tol=24*stripMap.dpr/(stripMap.iw*stripMap.k);
+  const dl=Math.abs(x-state.cl), dr=Math.abs(x-(1-state.cr));
+  return Math.min(dl,dr)>tol ? null : dl<dr ? 'l' : 'r';
+}
+$('#strip').addEventListener('pointerdown',e=>{
+  if(!stripMap) return;
+  drag=handleAt(e); if(!drag) return;
+  e.preventDefault(); $('#strip').setPointerCapture(e.pointerId);
+});
+$('#strip').addEventListener('pointermove',e=>{
+  if(!stripMap) return;
+  if(!drag){ $('#strip').style.cursor=handleAt(e)?'ew-resize':''; return; }
+  const x=trimAt(e);
+  if(drag==='l') state.cl=Math.min(Math.max(0,x),1-state.cr-MIN_KEEP);
+  else state.cr=Math.min(Math.max(0,1-x),1-state.cl-MIN_KEEP);
+  render();
+});
+['pointerup','pointercancel'].forEach(t=>$('#strip').addEventListener(t,()=>{ if(drag){ drag=null; render(); } }));
 document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
   const key=seg.dataset.key; state[key]= key==='ratio' ? +b.dataset.v : b.dataset.v;
