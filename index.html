@@ -45,6 +45,7 @@ button{font:inherit;color:inherit;cursor:pointer}
 .chip{margin-left:6px;border:1px solid var(--line);background:none;border-radius:999px;padding:7px 12px}
 .chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 input[type=range]{flex:1 1 200px;accent-color:var(--accent);min-height:32px}
+.val{min-width:4ch;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
 .preview{margin-top:14px;background:var(--surface);border-radius:14px;padding:16px 14px}
 .preview p{margin:0 0 12px;color:var(--muted);font-size:.92rem;text-align:center}
 .car{max-width:300px;margin:0 auto;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;border-radius:8px;background:#000;scrollbar-width:none}
@@ -101,6 +102,16 @@ input[type=range]{flex:1 1 200px;accent-color:var(--accent);min-height:32px}
           <button data-v="fit">Fit whole photo</button>
         </span>
       </div>
+      <div class="row">
+        <label class="label" for="cl">Trim left</label>
+        <input type="range" id="cl" min="0" max="0.45" step="0.005" value="0">
+        <output class="val" id="clVal" for="cl">0%</output>
+      </div>
+      <div class="row">
+        <label class="label" for="cr">Trim right</label>
+        <input type="range" id="cr" min="0" max="0.45" step="0.005" value="0">
+        <output class="val" id="crVal" for="cr">0%</output>
+      </div>
       <div class="row" id="posRow">
         <label class="label" for="pos">Position</label>
         <input type="range" id="pos" min="0" max="1" step="0.005" value="0.5">
@@ -134,11 +145,14 @@ input[type=range]{flex:1 1 200px;accent-color:var(--accent);min-height:32px}
 <script>
 const $ = s => document.querySelector(s);
 const OUT_W = 1080, MAX_N = 20;
-const state = { img:null, name:'panorama', n:3, auto:true, ratio:1, fit:'crop', pos:.5, bg:'#ffffff' };
+const state = { img:null, name:'panorama', n:3, auto:true, ratio:1, fit:'crop', pos:.5, cl:0, cr:0, bg:'#ffffff' };
 const status = t => { $('#status').textContent = t || ''; };
 
 // ---------- loading ----------
 function imgDims(){ const i=state.img; return [i.naturalWidth||i.width, i.naturalHeight||i.height]; }
+// Source area left after trimming the sides: [sx, sw, ih]
+function src(){ const [iw,ih]=imgDims(), sx=iw*state.cl; return [sx, Math.max(1,iw-sx-iw*state.cr), ih]; }
+function drawSrc(ctx,x,y,w,h){ const [sx,sw,ih]=src(); ctx.drawImage(state.img,sx,0,sw,ih,x,y,w,h); }
 
 function viaImg(file){
   return new Promise((res,rej)=>{ const i=new Image(); i.onload=()=>res(i); i.onerror=rej; i.src=URL.createObjectURL(file); });
@@ -154,6 +168,7 @@ async function loadFile(file){
     state.img = img;
     state.name = (file.name||'panorama').replace(/\.[^.]+$/,'') || 'panorama';
     state.auto = true; state.pos = .5; $('#pos').value = .5;
+    state.cl = state.cr = 0; $('#cl').value = $('#cr').value = 0;
     $('#drop').hidden = true; $('#editor').hidden = false; status('');
     render();
   }catch{
@@ -177,11 +192,11 @@ document.addEventListener('paste', e => {
 
 // ---------- geometry ----------
 function autoN(){
-  const [iw,ih]=imgDims();
+  const [,iw,ih]=src();
   return Math.min(MAX_N, Math.max(2, Math.round((iw/ih)/state.ratio)));
 }
 function geo(){
-  const [iw,ih]=imgDims(), W=OUT_W, H=Math.round(OUT_W/state.ratio), SW=W*state.n;
+  const [,iw,ih]=src(), W=OUT_W, H=Math.round(OUT_W/state.ratio), SW=W*state.n;
   const crop = state.fit==='crop';
   const s = crop ? Math.max(SW/iw, H/ih) : Math.min(SW/iw, H/ih);
   const dw=iw*s, dh=ih*s;
@@ -192,7 +207,7 @@ function geo(){
 function drawSlice(ctx,i,g,k){
   ctx.fillStyle=state.bg; ctx.fillRect(0,0,g.W*k,g.H*k);
   ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
-  ctx.drawImage(state.img,(g.ox-i*g.W)*k,g.oy*k,g.dw*k,g.dh*k);
+  drawSrc(ctx,(g.ox-i*g.W)*k,g.oy*k,g.dw*k,g.dh*k);
 }
 
 // ---------- rendering ----------
@@ -203,6 +218,7 @@ function draw(){
   if(!state.img) return;
   if(state.auto) state.n=autoN();
   $('#n').textContent=state.n;
+  $('#clVal').textContent=Math.round(state.cl*100)+'%'; $('#crVal').textContent=Math.round(state.cr*100)+'%';
   $('#auto').setAttribute('aria-pressed',state.auto);
   $('#minus').disabled = state.n<=2; $('#plus').disabled = state.n>=MAX_N;
   document.querySelectorAll('.seg').forEach(seg=>{
@@ -218,7 +234,7 @@ function draw(){
   const c=cv.getContext('2d');
   c.fillStyle=state.bg; c.fillRect(0,0,cv.width,cv.height);
   c.imageSmoothingQuality='high';
-  c.drawImage(state.img,g.ox*k,g.oy*k,g.dw*k,g.dh*k);
+  drawSrc(c,g.ox*k,g.oy*k,g.dw*k,g.dh*k);
   c.strokeStyle=cs.getPropertyValue('--cut').trim(); c.lineWidth=2*dpr; c.setLineDash([6*dpr,4*dpr]);
   for(let i=1;i<state.n;i++){ const x=Math.round(i*g.W*k)+.5; c.beginPath(); c.moveTo(x,0); c.lineTo(x,cv.height); c.stroke(); }
   c.setLineDash([]);
@@ -276,6 +292,8 @@ $('#minus').onclick=()=>{ state.auto=false; state.n=Math.max(2,state.n-1); rende
 $('#plus').onclick=()=>{ state.auto=false; state.n=Math.min(MAX_N,state.n+1); render(); };
 $('#auto').onclick=()=>{ state.auto=!state.auto; render(); };
 $('#pos').oninput=e=>{ state.pos=+e.target.value; render(); };
+$('#cl').oninput=e=>{ state.cl=+e.target.value; render(); };
+$('#cr').oninput=e=>{ state.cr=+e.target.value; render(); };
 document.querySelectorAll('.seg').forEach(seg=>seg.addEventListener('click',e=>{
   const b=e.target.closest('button'); if(!b) return;
   const key=seg.dataset.key; state[key]= key==='ratio' ? +b.dataset.v : b.dataset.v;
