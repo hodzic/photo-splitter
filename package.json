@@ -1,0 +1,8 @@
+{
+  "name": "photo-splitter",
+  "private": true,
+  "description": "No build step: the repo is deployed as-is. This file only defines the version bump.",
+  "scripts": {
+    "bump": "node tools/bump.js"
+  }
+}

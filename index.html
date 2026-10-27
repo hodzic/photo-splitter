@@ -56,6 +56,9 @@ input[type=range]{flex:1 1 200px;accent-color:var(--accent);min-height:32px}
 #status{min-height:1.5em;margin:12px 2px 0;color:var(--muted);font-size:.92rem}
 .apps{margin-top:32px;text-align:center;color:var(--muted);font-size:.9rem}
 .apps a{color:var(--accent)}
+.apps button{background:none;border:0;padding:0;font:inherit;color:var(--accent);text-decoration:underline;cursor:pointer}
+#upd{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:10;max-width:calc(100vw - 32px);
+  background:var(--ink);color:var(--bg);border:0;border-radius:14px;padding:10px 16px;font:inherit;font-size:.92rem;cursor:pointer}
 </style>
 </head>
 <body>
@@ -124,7 +127,8 @@ input[type=range]{flex:1 1 200px;accent-color:var(--accent);min-height:32px}
     <p id="status" role="status"></p>
   </section>
 
-  <footer class="apps"><a href="/">All apps</a></footer>
+  <footer class="apps"><a href="/">All apps</a> · version <span id="ver"></span> · <button id="updCheck">Check for updates</button> <span id="updS"></span></footer>
+  <button id="upd" hidden>Update available. Tap to reload.</button>
 </div>
 
 <script>
@@ -424,7 +428,39 @@ $('#share').onclick=async()=>{
 };
 
 // ---------- PWA ----------
-if('serviceWorker' in navigator) navigator.serviceWorker.register('/photo-splitter/sw.js');
+// App version: release date (US Pacific) plus a letter per release that day. Set by `npm run bump`, with VERSION in sw.js.
+const APP_VERSION = '2026-10-27a';
+$('#ver').textContent = APP_VERSION;
+// Updates: a new version downloads in the background and waits; the Update available button (or Check for updates)
+// switches to it and reloads. The app checks again whenever it comes back to the front.
+let swReg = null, waiting = null;
+const offerUpdate = w => { waiting = w; $('#upd').hidden = false; $('#updS').textContent = 'A new version is ready.'; $('#updCheck').textContent = 'Update now'; };
+const applyUpdate = () => waiting?.postMessage({ type: 'SKIP_WAITING' });
+$('#upd').onclick = applyUpdate;
+$('#updCheck').onclick = async () => {
+  if(waiting) return applyUpdate();
+  const st = $('#updS');
+  if(!swReg){ st.textContent = 'Updates need the installed app or a reload.'; return; }
+  st.textContent = 'Checking…';
+  try{ await swReg.update(); }catch{ st.textContent = 'Couldn’t check (offline?).'; return; }
+  const w = swReg.installing || swReg.waiting;
+  if(!w){ st.textContent = 'Up to date.'; return; }
+  if(w.state === 'installed') return offerUpdate(w);
+  st.textContent = 'Downloading the update…';
+};
+if('serviceWorker' in navigator){
+  // The first install also takes control; only an update replacing a running version reloads.
+  // Checked at each change, not at page load, so a page opened before the first install updates too.
+  let ctl = navigator.serviceWorker.controller, reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { const had = ctl; ctl = navigator.serviceWorker.controller; if(had && !reloading){ reloading = true; location.reload(); } });
+  navigator.serviceWorker.register('/photo-splitter/sw.js').then(reg => {
+    swReg = reg;
+    if(reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
+    reg.addEventListener('updatefound', () => { const w = reg.installing;
+      w?.addEventListener('statechange', () => { if(w.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(w); }); });
+    document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !waiting) reg.update().catch(() => {}); });
+  }).catch(() => {});
+}
 
 // image shared from another app (Android share sheet, installed app only)
 (async()=>{
