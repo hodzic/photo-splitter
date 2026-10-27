@@ -19,6 +19,7 @@ Live: [hodzic.github.io/photo-splitter](https://hodzic.github.io/photo-splitter/
 - `manifest.json` – PWA manifest and share target
 - `sw.js` – service worker (offline cache, share target)
 - `icons/` – app icons
+- `tools/bump.js` – sets the version (`npm run bump`)
 
 ## Updating
-Edit and push. The page itself is fetched network-first, so changes show on next open. If you change icons or the manifest, bump `VERSION` in `sw.js`.
+Edit, run `npm run bump`, and push. The version is the release date (US Pacific) plus a letter per release that day, e.g. `2026-10-27a`; the bump sets `APP_VERSION` in `index.html` (shown at the bottom of the page) and `VERSION` in `sw.js`. The page itself is fetched network-first, so changes show on next open; the rest (icons, manifest) arrives with the new service worker, which waits until you tap *Update available* or *Check for updates*.
