@@ -1,5 +1,5 @@
 // Run `npm run bump` for every release: VERSION carries the app version (date plus a letter), so installed copies get the update.
-const VERSION = 'splitter-2026-10-27a';
+const VERSION = 'splitter-2026-10-30a';
 const SHELL = ['/photo-splitter/', '/photo-splitter/index.html', '/photo-splitter/manifest.json', '/photo-splitter/icons/icon-192.png', '/photo-splitter/icons/icon-512.png', '/photo-splitter/icons/icon-maskable-512.png'];
 
 // A new version installs and waits until the page asks it to take over (Update available, tap to reload).
@@ -44,7 +44,8 @@ self.addEventListener('fetch', e => {
   // Page: network first so updates show up, cache when offline
   if (e.request.mode === 'navigate') {
     e.respondWith(
-      fetch(e.request)
+      // revalidate: the browser may still hold the previous page over HTTP (GitHub Pages: 10 minutes)
+      fetch(e.request.url, { cache: 'no-cache' })
         .then(r => { const copy = r.clone(); caches.open(VERSION).then(c => c.put('/photo-splitter/index.html', copy)); return r; })
         .catch(() => caches.match('/photo-splitter/index.html'))
     );
