@@ -429,38 +429,23 @@ $('#share').onclick=async()=>{
 
 // ---------- PWA ----------
 // App version: release date (US Pacific) plus a letter per release that day. Set by `npm run bump`, with VERSION in sw.js.
-const APP_VERSION = '2026-10-30a';
+const APP_VERSION = '2026-10-30b';
 $('#ver').textContent = APP_VERSION;
 // Updates: a new version downloads in the background and waits; the Update available button (or Check for updates)
-// switches to it and reloads. The app checks again whenever it comes back to the front.
-let swReg = null, waiting = null;
-const offerUpdate = w => { waiting = w; $('#upd').hidden = false; $('#updS').textContent = 'A new version is ready.'; $('#updCheck').textContent = 'Update now'; };
-const applyUpdate = () => waiting?.postMessage({ type: 'SKIP_WAITING' });
+// switches to it and reloads. The mechanics are /shared/update.js on hodzic.github.io, shared by the apps there.
+let swReg = null, updates = null;
+const offerUpdate = () => { $('#upd').hidden = false; $('#updS').textContent = 'A new version is ready.'; $('#updCheck').textContent = 'Update now'; };
+const applyUpdate = () => updates?.applyUpdate();
 $('#upd').onclick = applyUpdate;
 $('#updCheck').onclick = async () => {
-  if(waiting) return applyUpdate();
+  if(updates?.updateWaiting()) return applyUpdate();
   const st = $('#updS');
   if(!swReg){ st.textContent = 'Updates need the installed app or a reload.'; return; }
   st.textContent = 'Checking…';
-  try{ await swReg.update(); }catch{ st.textContent = 'Couldn’t check (offline?).'; return; }
-  const w = swReg.installing || swReg.waiting;
-  if(!w){ st.textContent = 'Up to date.'; return; }
-  if(w.state === 'installed') return offerUpdate(w);
-  st.textContent = 'Downloading the update…';
+  const r = await updates.checkForUpdate();
+  st.textContent = r === 'failed' ? 'Couldn’t check (offline?).' : r === 'current' ? 'Up to date.' : r === 'downloading' ? 'Downloading the update…' : st.textContent;
 };
-if('serviceWorker' in navigator){
-  // The first install also takes control; only an update replacing a running version reloads.
-  // Checked at each change, not at page load, so a page opened before the first install updates too.
-  let ctl = navigator.serviceWorker.controller, reloading = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { const had = ctl; ctl = navigator.serviceWorker.controller; if(had && !reloading){ reloading = true; location.reload(); } });
-  navigator.serviceWorker.register('/photo-splitter/sw.js').then(reg => {
-    swReg = reg;
-    if(reg.waiting && navigator.serviceWorker.controller) offerUpdate(reg.waiting);
-    reg.addEventListener('updatefound', () => { const w = reg.installing;
-      w?.addEventListener('statechange', () => { if(w.state === 'installed' && navigator.serviceWorker.controller) offerUpdate(w); }); });
-    document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !waiting) reg.update().catch(() => {}); });
-  }).catch(() => {});
-}
+import('/shared/update.js').then(async u => { updates = u; swReg = await u.registerUpdates('/photo-splitter/sw.js', offerUpdate); }).catch(() => {});
 
 // image shared from another app (Android share sheet, installed app only)
 (async()=>{
